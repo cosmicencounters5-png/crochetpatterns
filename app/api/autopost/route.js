@@ -16,7 +16,6 @@ export async function GET() {
     const res = await fetch(RSS_URL);
     const xml = await res.text();
 
-    // hent titles og links
     const titles = [...xml.matchAll(/<title>(.*?)<\/title>/g)].slice(1);
     const links = [...xml.matchAll(/<link>(.*?)<\/link>/g)].slice(1);
 
@@ -25,30 +24,43 @@ export async function GET() {
       link: links[i] ? links[i][1] : ""
     }));
 
-    // velg tilfeldig produkt
     const selected = items[Math.floor(Math.random() * items.length)];
 
-    // AI lager bloggpost med naturlig Etsy link
     const completion = await openai.chat.completions.create({
       model: "gpt-4.1",
       messages: [
         {
           role: "system",
-          content: "You are a crochet blogger writing helpful SEO posts."
+          content: `
+You are a crochet blogger writing helpful SEO articles.
+
+Structure:
+
+- friendly intro
+- beginner tips
+- crochet inspiration
+- soft recommendations
+- natural conversational tone
+
+IMPORTANT:
+
+Mention the Etsy pattern naturally THREE times:
+
+1) Early intro mention
+2) Mid article suggestion
+3) Ending recommendation
+
+Never sound like advertisement.
+`
         },
         {
           role: "user",
           content: `
-Write a helpful crochet blog article about this crochet pattern:
+Write a crochet blog article about:
 
 ${selected.title}
 
-Include:
-
-- beginner tips
-- crochet inspiration
-- natural friendly tone
-- mention this Etsy pattern naturally and include this link:
+Include this Etsy link naturally:
 
 ${selected.link}
 `
