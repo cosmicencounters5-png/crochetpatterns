@@ -5,35 +5,62 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
 
-  const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-  });
+  try {
 
-  const topic = "Easy crochet gift ideas";
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
 
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4.1",
-    messages: [
-      {
-        role: "system",
-        content: "You are a crochet blogger writing helpful SEO posts."
-      },
-      {
-        role: "user",
-        content: `Write a crochet blog article about: ${topic}`
-      }
-    ],
-  });
+    // ✅ DIN ETSY RSS
+    const RSS_URL = "https://crochetpatternworks.etsy.com/rss";
 
-  const article = completion.choices[0]?.message?.content;
+    // hent RSS feed
+    const res = await fetch(RSS_URL);
+    const xml = await res.text();
 
-  const newPost = {
-    slug: "post-" + Date.now(),
-    title: topic,
-    content: article
-  };
+    // hent alle titles fra RSS
+    const matches = [...xml.matchAll(/<title>(.*?)<\/title>/g)];
 
-  posts.push(newPost);
+    // første title er shop navn → skip
+    const productTitles = matches.slice(1).map(m => m[1]);
 
-  return Response.json(newPost);
+    // velg tilfeldig produkt
+    const topic = productTitles[Math.floor(Math.random() * productTitles.length)];
+
+    // generer bloggpost med AI
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4.1",
+      messages: [
+        {
+          role: "system",
+          content: "You are a crochet blogger writing helpful SEO posts."
+        },
+        {
+          role: "user",
+          content: `Write a helpful crochet blog article about this crochet pattern: ${topic}. Include beginner tips, inspiration and natural tone.`
+        }
+      ],
+    });
+
+    const article = completion.choices[0]?.message?.content;
+
+    const newPost = {
+      slug: "post-" + Date.now(),
+      title: topic,
+      content: article
+    };
+
+    // lagre i mini database
+    posts.push(newPost);
+
+    return Response.json(newPost);
+
+  } catch (error) {
+
+    console.error(error);
+
+    return Response.json({ success: false }, { status: 500 });
+
+  }
+
 }
