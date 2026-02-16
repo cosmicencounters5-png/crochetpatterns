@@ -1,17 +1,23 @@
-import { posts } from "../../lib/posts";
+import { supabase } from "../../lib/db";
 
-export default function BlogPost({ params }) {
+export default async function BlogPost({ params }) {
 
-  const post = posts.find(p => p.slug === params.slug);
+  const { data } = await supabase
+    .from("posts")
+    .select("*")
+    .eq("slug", params.slug)
+    .single();
 
-  if (!post) {
+  if (!data) {
     return <h1>Not found</h1>;
   }
 
   return (
     <main>
-      <h1>{post.title}</h1>
-      <p>{post.content}</p>
+      <h1>{data.title}</h1>
+      <div style={{whiteSpace:"pre-wrap"}}>
+        {data.content}
+      </div>
     </main>
   );
 }
