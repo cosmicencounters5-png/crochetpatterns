@@ -24,41 +24,29 @@ export async function GET() {
     const titles = [...xml.matchAll(/<title>(.*?)<\/title>/g)].slice(1);
     const links = [...xml.matchAll(/<link>(.*?)<\/link>/g)].slice(1);
 
-    if (!titles.length) {
-      throw new Error("No products found in RSS");
-    }
+    // 🔥 HENT IMAGE FRA DESCRIPTION
+    const descriptions = [...xml.matchAll(/<description><!\[CDATA\[(.*?)\]\]><\/description>/gs)];
 
-    const items = titles.map((t, i) => ({
-      title: t[1],
-      link: links[i] ? links[i][1] : ""
-    }));
+    const items = titles.map((t, i) => {
 
-    const selected = items[Math.floor(Math.random() * items.length)];
+      let imageUrl = null;
 
-    // 🔥 HENT ETSY IMAGE (med ekte browser headers)
-    let imageUrl = null;
-
-    try {
-
-      const productRes = await fetch(selected.link, {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
-          "Accept-Language": "en-US,en;q=0.9"
+      if (descriptions[i]) {
+        const imgMatch = descriptions[i][1].match(/<img[^>]+src="([^"]+)"/);
+        if (imgMatch) {
+          imageUrl = imgMatch[1];
         }
-      });
-
-      const productHtml = await productRes.text();
-
-      const ogMatch = productHtml.match(/property="og:image" content="([^"]+)"/);
-
-      if (ogMatch && ogMatch[1]) {
-        imageUrl = ogMatch[1];
       }
 
-    } catch (e) {
-      console.log("Could not fetch Etsy image");
-    }
+      return {
+        title: t[1],
+        link: links[i] ? links[i][1] : "",
+        image: imageUrl
+      };
+
+    });
+
+    const selected = items[Math.floor(Math.random() * items.length)];
 
     // AI CONTENT
     const completion = await openai.chat.completions.create({
@@ -94,10 +82,6 @@ Etsy link: ${selected.link}`
 
     const output = completion.choices?.[0]?.message?.content;
 
-    if (!output) {
-      throw new Error("AI generation failed");
-    }
-
     const slug = "post-" + Date.now();
 
     const { error } = await supabase
@@ -106,7 +90,7 @@ Etsy link: ${selected.link}`
         slug,
         title: selected.title,
         content: output,
-        image: imageUrl
+        image: selected.image
       });
 
     if (error) {
