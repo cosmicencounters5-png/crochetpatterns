@@ -35,16 +35,24 @@ export async function GET() {
 
     const selected = items[Math.floor(Math.random() * items.length)];
 
-    // 👇 HENT ETSY PRODUCT IMAGE (100% stabil metode)
+    // 🔥 HENT ETSY IMAGE (med ekte browser headers)
     let imageUrl = null;
 
     try {
-      const productRes = await fetch(selected.link);
+
+      const productRes = await fetch(selected.link, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
+          "Accept-Language": "en-US,en;q=0.9"
+        }
+      });
+
       const productHtml = await productRes.text();
 
-      const ogMatch = productHtml.match(/property="og:image" content="(.*?)"/);
+      const ogMatch = productHtml.match(/property="og:image" content="([^"]+)"/);
 
-      if (ogMatch) {
+      if (ogMatch && ogMatch[1]) {
         imageUrl = ogMatch[1];
       }
 
