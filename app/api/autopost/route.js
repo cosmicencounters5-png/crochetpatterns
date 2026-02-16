@@ -24,20 +24,33 @@ export async function GET() {
     const titles = [...xml.matchAll(/<title>(.*?)<\/title>/g)].slice(1);
     const links = [...xml.matchAll(/<link>(.*?)<\/link>/g)].slice(1);
 
-    // 👇 hent Etsy image fra RSS
-    const images = [...xml.matchAll(/<media:content url="(.*?)"/g)];
-
     if (!titles.length) {
       throw new Error("No products found in RSS");
     }
 
     const items = titles.map((t, i) => ({
       title: t[1],
-      link: links[i] ? links[i][1] : "",
-      image: images[i] ? images[i][1] : null
+      link: links[i] ? links[i][1] : ""
     }));
 
     const selected = items[Math.floor(Math.random() * items.length)];
+
+    // 👇 HENT ETSY PRODUCT IMAGE (100% stabil metode)
+    let imageUrl = null;
+
+    try {
+      const productRes = await fetch(selected.link);
+      const productHtml = await productRes.text();
+
+      const ogMatch = productHtml.match(/property="og:image" content="(.*?)"/);
+
+      if (ogMatch) {
+        imageUrl = ogMatch[1];
+      }
+
+    } catch (e) {
+      console.log("Could not fetch Etsy image");
+    }
 
     // AI CONTENT
     const completion = await openai.chat.completions.create({
@@ -76,9 +89,6 @@ Etsy link: ${selected.link}`
     if (!output) {
       throw new Error("AI generation failed");
     }
-
-    // 👇 bruk Etsy image direkte (BEST for Pinterest)
-    const imageUrl = selected.image;
 
     const slug = "post-" + Date.now();
 
