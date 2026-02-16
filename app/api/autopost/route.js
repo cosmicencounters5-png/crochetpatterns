@@ -35,16 +35,14 @@ export async function GET() {
 
     const selected = items[Math.floor(Math.random() * items.length)];
 
-    // 🔥 HENT ETSY IMAGE FRA PRODUCT PAGE
+    // 🔥 TRY FETCH ETSY IMAGE FIRST
     let imageUrl = null;
 
     try {
 
       const productRes = await fetch(selected.link, {
         headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
-          "Accept-Language": "en-US,en;q=0.9"
+          "User-Agent": "Mozilla/5.0",
         }
       });
 
@@ -52,12 +50,30 @@ export async function GET() {
 
       const ogMatch = html.match(/property="og:image" content="([^"]+)"/);
 
-      if (ogMatch && ogMatch[1]) {
+      if (ogMatch?.[1]) {
         imageUrl = ogMatch[1];
       }
 
     } catch (e) {
-      console.log("Image fetch failed");
+      console.log("Etsy image fetch failed");
+    }
+
+    // 🔥 FALLBACK: GENERATE PIN IMAGE (ALWAYS WORKS)
+    if (!imageUrl) {
+
+      try {
+
+        const img = await openai.images.generate({
+          model: "gpt-image-1",
+          prompt: `Vertical pinterest crochet pin, cozy yarn aesthetic, handmade crochet style, product: ${selected.title}, pinterest optimized layout`,
+          size: "1024x1024"
+        });
+
+        imageUrl = img.data?.[0]?.url || null;
+
+      } catch (e) {
+        console.log("AI image generation failed");
+      }
     }
 
     // AI CONTENT
