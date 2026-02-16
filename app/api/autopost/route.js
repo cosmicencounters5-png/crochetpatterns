@@ -13,7 +13,6 @@ export async function GET() {
 
     const RSS_URL = "https://crochetpatternworks.etsy.com/rss";
 
-    // FETCH ETSY RSS
     const res = await fetch(RSS_URL);
 
     if (!res.ok) {
@@ -25,18 +24,22 @@ export async function GET() {
     const titles = [...xml.matchAll(/<title>(.*?)<\/title>/g)].slice(1);
     const links = [...xml.matchAll(/<link>(.*?)<\/link>/g)].slice(1);
 
+    // 👇 hent Etsy image fra RSS
+    const images = [...xml.matchAll(/<media:content url="(.*?)"/g)];
+
     if (!titles.length) {
       throw new Error("No products found in RSS");
     }
 
     const items = titles.map((t, i) => ({
       title: t[1],
-      link: links[i] ? links[i][1] : ""
+      link: links[i] ? links[i][1] : "",
+      image: images[i] ? images[i][1] : null
     }));
 
     const selected = items[Math.floor(Math.random() * items.length)];
 
-    // AI BLOG + PIN CONTENT
+    // AI CONTENT
     const completion = await openai.chat.completions.create({
       model: "gpt-4.1",
       messages: [
@@ -74,25 +77,11 @@ Etsy link: ${selected.link}`
       throw new Error("AI generation failed");
     }
 
-    // GENERATE PINTEREST IMAGE
-    let imageUrl = null;
-
-    try {
-      const image = await openai.images.generate({
-        model: "gpt-image-1",
-        prompt: `Vertical pinterest crochet pin for ${selected.title}, cozy yarn aesthetic, handmade crochet style, clean minimal background, pinterest friendly layout`,
-        size: "1024x1024"
-      });
-
-      imageUrl = image.data[0]?.url || null;
-
-    } catch (imgErr) {
-      console.log("Image generation failed, continuing without image");
-    }
+    // 👇 bruk Etsy image direkte (BEST for Pinterest)
+    const imageUrl = selected.image;
 
     const slug = "post-" + Date.now();
 
-    // SAVE TO SUPABASE
     const { error } = await supabase
       .from("posts")
       .insert({
