@@ -1,46 +1,39 @@
 import OpenAI from "openai";
+import { posts } from "@/app/lib/posts";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
 
-  try {
+  const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
 
-    const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
+  const topic = "Easy crochet gift ideas";
 
-    const topic = "Easy crochet patterns for beginners";
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4.1",
+    messages: [
+      {
+        role: "system",
+        content: "You are a crochet blogger writing helpful SEO posts."
+      },
+      {
+        role: "user",
+        content: `Write a crochet blog article about: ${topic}`
+      }
+    ],
+  });
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4.1",
-      messages: [
-        {
-          role: "system",
-          content: "You are a friendly crochet blogger writing helpful SEO blog posts."
-        },
-        {
-          role: "user",
-          content: `Write a helpful crochet blog article about: ${topic}`
-        }
-      ],
-    });
+  const article = completion.choices[0]?.message?.content;
 
-    const article = completion.choices[0]?.message?.content;
+  const newPost = {
+    slug: "post-" + Date.now(),
+    title: topic,
+    content: article
+  };
 
-    return Response.json({
-      success: true,
-      article
-    });
+  posts.push(newPost);
 
-  } catch (error) {
-
-    console.error(error);
-
-    return Response.json({
-      success: false
-    }, { status: 500 });
-
-  }
-
+  return Response.json(newPost);
 }
