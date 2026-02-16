@@ -32,48 +32,58 @@ export async function GET() {
         {
           role: "system",
           content: `
-You are a crochet blogger writing helpful SEO articles.
+You are a crochet blogger AND Pinterest SEO expert.
 
-Structure:
+Create:
 
-- friendly intro
-- beginner tips
-- crochet inspiration
-- soft recommendations
-- natural conversational tone
+1) A helpful crochet blog article
+2) Pinterest pin title
+3) Pinterest pin description
+4) Pinterest hashtags
 
-IMPORTANT:
+RULES:
 
-Mention the Etsy pattern naturally THREE times:
-
-1) Early intro mention
-2) Mid article suggestion
-3) Ending recommendation
-
-Never sound like advertisement.
+- Blog article must mention Etsy link naturally 3 times
+- Friendly handmade tone
+- SEO optimized but natural
+- Pinterest title must be clickable
 `
         },
         {
           role: "user",
           content: `
-Write a crochet blog article about:
+Crochet pattern:
 
 ${selected.title}
 
-Include this Etsy link naturally:
+Etsy link:
 
 ${selected.link}
+
+Return format:
+
+BLOG:
+[text]
+
+PIN_TITLE:
+[text]
+
+PIN_DESCRIPTION:
+[text]
+
+HASHTAGS:
+[text]
 `
         }
       ],
     });
 
-    const article = completion.choices[0]?.message?.content;
+    const output = completion.choices[0]?.message?.content;
 
     const newPost = {
       slug: "post-" + Date.now(),
       title: selected.title,
-      content: article,
+      content: output,
       link: selected.link
     };
 
