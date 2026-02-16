@@ -1,4 +1,4 @@
-import { posts } from "@/app/lib/posts";
+import { posts } from "../../lib/posts";
 
 export default function BlogPost({ params }) {
 
