@@ -11,23 +11,24 @@ export async function GET() {
       apiKey: process.env.OPENAI_API_KEY,
     });
 
-    // ✅ DIN ETSY RSS
     const RSS_URL = "https://crochetpatternworks.etsy.com/rss";
 
-    // hent RSS feed
     const res = await fetch(RSS_URL);
     const xml = await res.text();
 
-    // hent alle titles fra RSS
-    const matches = [...xml.matchAll(/<title>(.*?)<\/title>/g)];
+    // hent titles og links
+    const titles = [...xml.matchAll(/<title>(.*?)<\/title>/g)].slice(1);
+    const links = [...xml.matchAll(/<link>(.*?)<\/link>/g)].slice(1);
 
-    // første title er shop navn → skip
-    const productTitles = matches.slice(1).map(m => m[1]);
+    const items = titles.map((t, i) => ({
+      title: t[1],
+      link: links[i] ? links[i][1] : ""
+    }));
 
     // velg tilfeldig produkt
-    const topic = productTitles[Math.floor(Math.random() * productTitles.length)];
+    const selected = items[Math.floor(Math.random() * items.length)];
 
-    // generer bloggpost med AI
+    // AI lager bloggpost med naturlig Etsy link
     const completion = await openai.chat.completions.create({
       model: "gpt-4.1",
       messages: [
@@ -37,7 +38,20 @@ export async function GET() {
         },
         {
           role: "user",
-          content: `Write a helpful crochet blog article about this crochet pattern: ${topic}. Include beginner tips, inspiration and natural tone.`
+          content: `
+Write a helpful crochet blog article about this crochet pattern:
+
+${selected.title}
+
+Include:
+
+- beginner tips
+- crochet inspiration
+- natural friendly tone
+- mention this Etsy pattern naturally and include this link:
+
+${selected.link}
+`
         }
       ],
     });
@@ -46,11 +60,11 @@ export async function GET() {
 
     const newPost = {
       slug: "post-" + Date.now(),
-      title: topic,
-      content: article
+      title: selected.title,
+      content: article,
+      link: selected.link
     };
 
-    // lagre i mini database
     posts.push(newPost);
 
     return Response.json(newPost);
