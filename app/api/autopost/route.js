@@ -13,11 +13,11 @@ export async function GET() {
 
     const RSS_URL = "https://crochetpatternworks.etsy.com/rss";
 
-    // hent rss
+    // FETCH ETSY RSS
     const res = await fetch(RSS_URL);
 
     if (!res.ok) {
-      return Response.json({ error: "RSS fetch failed" }, { status: 500 });
+      throw new Error("RSS fetch failed");
     }
 
     const xml = await res.text();
@@ -26,7 +26,7 @@ export async function GET() {
     const links = [...xml.matchAll(/<link>(.*?)<\/link>/g)].slice(1);
 
     if (!titles.length) {
-      return Response.json({ error: "No products found in RSS" });
+      throw new Error("No products found in RSS");
     }
 
     const items = titles.map((t, i) => ({
@@ -36,29 +36,34 @@ export async function GET() {
 
     const selected = items[Math.floor(Math.random() * items.length)];
 
-    // AI GENERERING
+    // AI BLOG + PIN CONTENT
     const completion = await openai.chat.completions.create({
       model: "gpt-4.1",
       messages: [
         {
           role: "system",
-          content: `You are crochet blogger + Pinterest expert.
+          content: `You are a crochet blogger AND Pinterest SEO expert.
 
-Return:
+Create:
 
 BLOG:
-...
+Helpful crochet article.
+Mention Etsy link naturally 3 times.
+
 PIN_TITLE:
-...
+Short clickable Pinterest title.
+
 PIN_DESCRIPTION:
-...
+SEO friendly description for Pinterest.
+
 HASHTAGS:
-...`
+crochet hashtags.
+`
         },
         {
           role: "user",
           content: `Pattern: ${selected.title}
-Link: ${selected.link}`
+Etsy link: ${selected.link}`
         }
       ]
     });
@@ -66,38 +71,50 @@ Link: ${selected.link}`
     const output = completion.choices?.[0]?.message?.content;
 
     if (!output) {
-      return Response.json({ error: "AI generation failed" });
+      throw new Error("AI generation failed");
+    }
+
+    // GENERATE PINTEREST IMAGE
+    let imageUrl = null;
+
+    try {
+      const image = await openai.images.generate({
+        model: "gpt-image-1",
+        prompt: `Vertical pinterest crochet pin for ${selected.title}, cozy yarn aesthetic, handmade crochet style, clean minimal background, pinterest friendly layout`,
+        size: "1024x1024"
+      });
+
+      imageUrl = image.data[0]?.url || null;
+
+    } catch (imgErr) {
+      console.log("Image generation failed, continuing without image");
     }
 
     const slug = "post-" + Date.now();
 
-    // SUPABASE INSERT (MED ERROR DEBUG)
-    const { data, error } = await supabase
+    // SAVE TO SUPABASE
+    const { error } = await supabase
       .from("posts")
       .insert({
         slug,
         title: selected.title,
-        content: output
+        content: output,
+        image: imageUrl
       });
 
-    console.log("SUPABASE INSERT:", data, error);
-
     if (error) {
-      return Response.json({
-        error: "Supabase insert failed",
-        details: error
-      }, { status: 500 });
+      throw error;
     }
 
-    return Response.json({ slug });
+    return Response.json({ success: true, slug });
 
   } catch (err) {
 
     console.error("AUTPOST ERROR:", err);
 
     return Response.json({
-      error: "Server crash",
-      details: err.message
+      success: false,
+      error: err.message
     }, { status: 500 });
   }
 }
