@@ -24,29 +24,41 @@ export async function GET() {
     const titles = [...xml.matchAll(/<title>(.*?)<\/title>/g)].slice(1);
     const links = [...xml.matchAll(/<link>(.*?)<\/link>/g)].slice(1);
 
-    // 🔥 HENT IMAGE FRA DESCRIPTION
-    const descriptions = [...xml.matchAll(/<description><!\[CDATA\[(.*?)\]\]><\/description>/gs)];
+    if (!titles.length) {
+      throw new Error("No products found in RSS");
+    }
 
-    const items = titles.map((t, i) => {
-
-      let imageUrl = null;
-
-      if (descriptions[i]) {
-        const imgMatch = descriptions[i][1].match(/<img[^>]+src="([^"]+)"/);
-        if (imgMatch) {
-          imageUrl = imgMatch[1];
-        }
-      }
-
-      return {
-        title: t[1],
-        link: links[i] ? links[i][1] : "",
-        image: imageUrl
-      };
-
-    });
+    const items = titles.map((t, i) => ({
+      title: t[1],
+      link: links[i] ? links[i][1] : ""
+    }));
 
     const selected = items[Math.floor(Math.random() * items.length)];
+
+    // 🔥 HENT ETSY IMAGE FRA PRODUCT PAGE
+    let imageUrl = null;
+
+    try {
+
+      const productRes = await fetch(selected.link, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+          "Accept-Language": "en-US,en;q=0.9"
+        }
+      });
+
+      const html = await productRes.text();
+
+      const ogMatch = html.match(/property="og:image" content="([^"]+)"/);
+
+      if (ogMatch && ogMatch[1]) {
+        imageUrl = ogMatch[1];
+      }
+
+    } catch (e) {
+      console.log("Image fetch failed");
+    }
 
     // AI CONTENT
     const completion = await openai.chat.completions.create({
@@ -69,8 +81,7 @@ PIN_DESCRIPTION:
 SEO friendly description for Pinterest.
 
 HASHTAGS:
-crochet hashtags.
-`
+crochet hashtags.`
         },
         {
           role: "user",
@@ -90,14 +101,14 @@ Etsy link: ${selected.link}`
         slug,
         title: selected.title,
         content: output,
-        image: selected.image
+        image: imageUrl
       });
 
     if (error) {
       throw error;
     }
 
-    return Response.json({ success: true, slug });
+    return Response.json({ success: true, slug, image: imageUrl });
 
   } catch (err) {
 
