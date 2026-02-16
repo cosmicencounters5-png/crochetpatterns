@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { posts } from "@/app/lib/posts";
+import { posts } from "../../lib/posts";
 
 export const dynamic = "force-dynamic";
 
