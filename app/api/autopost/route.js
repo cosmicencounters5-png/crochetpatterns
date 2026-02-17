@@ -7,13 +7,15 @@ export async function GET() {
 
   try {
 
+    console.log("START AUTPOST");
+
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     });
 
-    // =========================
+    // ======================
     // FETCH RSS
-    // =========================
+    // ======================
 
     const RSS_URL = "https://crochetpatternworks.etsy.com/rss";
 
@@ -39,55 +41,46 @@ export async function GET() {
 
     const selected = items[Math.floor(Math.random()*items.length)];
 
-    // =========================
-    // AI BLOG TEXT
-    // =========================
+    console.log("SELECTED:", selected);
+
+    // ======================
+    // AI BLOG
+    // ======================
 
     const completion = await openai.chat.completions.create({
       model:"gpt-4.1",
       messages:[
-        {
-          role:"system",
-          content:`You are crochet blogger + Pinterest SEO expert.
-
-Return:
-
-BLOG:
-...
-
-PIN_TITLE:
-...
-
-PIN_DESCRIPTION:
-...`
-        },
-        {
-          role:"user",
-          content:`Pattern: ${selected.title}
-Link: ${selected.link}`
-        }
+        { role:"system", content:"Write crochet blog content." },
+        { role:"user", content:selected.title }
       ]
     });
 
     const output = completion.choices[0].message.content;
 
-    // =========================
-    // AI IMAGE GENERATION
-    // =========================
+    // ======================
+    // IMAGE GENERATION
+    // ======================
+
+    console.log("GENERATING IMAGE...");
 
     const imageResponse = await openai.images.generate({
       model:"gpt-image-1",
-      prompt:`Vertical pinterest crochet pin, cozy yarn aesthetic, handmade crochet style, safe family-friendly design, yarn project: ${selected.title}`,
+      prompt:`Pinterest crochet pin, safe handmade yarn design, ${selected.title}`,
       size:"1024x1024"
     });
 
+    console.log("IMAGE RESPONSE:", imageResponse);
+
     const base64 = imageResponse.data?.[0]?.b64_json;
+
+    if(!base64){
+      console.log("NO BASE64 RETURNED");
+    }
 
     let imageUrl = null;
 
     if(base64){
 
-      // ⭐ FIX: convert to Uint8Array
       const bytes = Uint8Array.from(
         atob(base64),
         c => c.charCodeAt(0)
@@ -95,28 +88,28 @@ Link: ${selected.link}`
 
       const fileName = `pin-${Date.now()}.png`;
 
-      const { error: uploadError } = await supabase.storage
+      console.log("UPLOADING TO SUPABASE...");
+
+      const { data, error } = await supabase.storage
         .from("pins")
         .upload(fileName, bytes, {
           contentType:"image/png",
           upsert:true
         });
 
-      if(uploadError){
-        console.log("UPLOAD ERROR:", uploadError);
-      } else {
+      console.log("UPLOAD RESULT:", data, error);
 
-        const { data } = supabase.storage
+      if(!error){
+
+        const { data: publicData } = supabase.storage
           .from("pins")
           .getPublicUrl(fileName);
 
-        imageUrl = data.publicUrl;
+        imageUrl = publicData.publicUrl;
+
+        console.log("PUBLIC URL:", imageUrl);
       }
     }
-
-    // =========================
-    // SAVE POST
-    // =========================
 
     const slug = "post-"+Date.now();
 
@@ -127,7 +120,9 @@ Link: ${selected.link}`
       image:imageUrl
     });
 
-    return Response.json({ success:true, slug, image:imageUrl });
+    console.log("DONE");
+
+    return Response.json({success:true,slug,image:imageUrl});
 
   } catch(err){
 
