@@ -21,60 +21,34 @@ export async function GET() {
 
     const xml = await res.text();
 
-    const titles = [...xml.matchAll(/<title>(.*?)<\/title>/g)].slice(1);
-    const links = [...xml.matchAll(/<link>(.*?)<\/link>/g)].slice(1);
+    // 🔥 PARSE EACH ITEM SEPARATELY (STABLE METHOD)
+    const rawItems = xml.split("<item>").slice(1);
 
-    if (!titles.length) {
+    const items = rawItems.map(item => {
+
+      const titleMatch = item.match(/<title>(.*?)<\/title>/);
+      const linkMatch = item.match(/<link>(.*?)<\/link>/);
+
+      // Etsy thumbnail
+      const imgMatch =
+        item.match(/<media:thumbnail url="([^"]+)"/) ||
+        item.match(/<media:content url="([^"]+)"/);
+
+      return {
+        title: titleMatch ? titleMatch[1] : "",
+        link: linkMatch ? linkMatch[1] : "",
+        image: imgMatch ? imgMatch[1] : null
+      };
+
+    }).filter(i => i.title && i.link);
+
+    if (!items.length) {
       throw new Error("No products found in RSS");
     }
 
-    const items = titles.map((t, i) => ({
-      title: t[1],
-      link: links[i] ? links[i][1] : ""
-    }));
-
     const selected = items[Math.floor(Math.random() * items.length)];
 
-    // 🔥 TRY FETCH ETSY IMAGE FIRST
-    let imageUrl = null;
-
-    try {
-
-      const productRes = await fetch(selected.link, {
-        headers: {
-          "User-Agent": "Mozilla/5.0",
-        }
-      });
-
-      const html = await productRes.text();
-
-      const ogMatch = html.match(/property="og:image" content="([^"]+)"/);
-
-      if (ogMatch?.[1]) {
-        imageUrl = ogMatch[1];
-      }
-
-    } catch (e) {
-      console.log("Etsy image fetch failed");
-    }
-
-    // 🔥 FALLBACK: GENERATE PIN IMAGE (ALWAYS WORKS)
-    if (!imageUrl) {
-
-      try {
-
-        const img = await openai.images.generate({
-          model: "gpt-image-1",
-          prompt: `Vertical pinterest crochet pin, cozy yarn aesthetic, handmade crochet style, product: ${selected.title}, pinterest optimized layout`,
-          size: "1024x1024"
-        });
-
-        imageUrl = img.data?.[0]?.url || null;
-
-      } catch (e) {
-        console.log("AI image generation failed");
-      }
-    }
+    const imageUrl = selected.image;
 
     // AI CONTENT
     const completion = await openai.chat.completions.create({
