@@ -35,20 +35,16 @@ export async function GET() {
 
     }).filter(i => i.title && i.link);
 
-    if (!items.length) {
-      throw new Error("No products found in RSS");
-    }
+    const selected = items[Math.floor(Math.random()*items.length)];
 
-    const selected = items[Math.floor(Math.random() * items.length)];
-
-    // ⭐ AI BLOG + PIN CONTENT
+    // ⭐ GENERATE BLOG TEXT
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4.1",
-      messages: [
+      model:"gpt-4.1",
+      messages:[
         {
-          role: "system",
-          content: `You are crochet blogger + Pinterest SEO expert.
+          role:"system",
+          content:`You are crochet blogger + Pinterest SEO expert.
 
 Return:
 
@@ -62,40 +58,40 @@ PIN_DESCRIPTION:
 ...`
         },
         {
-          role: "user",
-          content: `Pattern: ${selected.title}
+          role:"user",
+          content:`Pattern: ${selected.title}
 Link: ${selected.link}`
         }
       ]
     });
 
-    const output = completion.choices?.[0]?.message?.content;
+    const output = completion.choices[0].message.content;
 
-    // ⭐ AI GENERATE PIN IMAGE (ALLTID FUNKER)
+    // 🔥 GENERATE IMAGE (REAL WORKING WAY)
 
-    const img = await openai.images.generate({
-      model: "gpt-image-1",
-      prompt: `Vertical pinterest crochet pin, cozy yarn aesthetic, handmade crochet design, product: ${selected.title}, minimal modern pinterest layout`,
-      size: "1024x1024"
+    const imageResponse = await openai.images.generate({
+      model:"gpt-image-1",
+      prompt:`Vertical pinterest crochet pin, cozy yarn aesthetic, handmade crochet design, product: ${selected.title}, pinterest optimized layout`,
+      size:"1024x1024"
     });
 
-    const imageBase64 = img.data?.[0]?.b64_json;
+    const base64 = imageResponse.data?.[0]?.b64_json;
 
     let imageUrl = null;
 
-    if (imageBase64) {
+    if(base64){
 
-      const buffer = Buffer.from(imageBase64, "base64");
+      const buffer = Buffer.from(base64,"base64");
 
       const fileName = `pin-${Date.now()}.png`;
 
-      const { error: uploadError } = await supabase.storage
+      const { error:uploadError } = await supabase.storage
         .from("pins")
         .upload(fileName, buffer, {
-          contentType: "image/png"
+          contentType:"image/png"
         });
 
-      if (!uploadError) {
+      if(!uploadError){
 
         const { data } = supabase.storage
           .from("pins")
@@ -105,16 +101,16 @@ Link: ${selected.link}`
       }
     }
 
-    const slug = "post-" + Date.now();
+    const slug = "post-"+Date.now();
 
     await supabase.from("posts").insert({
       slug,
-      title: selected.title,
-      content: output,
-      image: imageUrl
+      title:selected.title,
+      content:output,
+      image:imageUrl
     });
 
-    return Response.json({ success:true, slug, image:imageUrl });
+    return Response.json({success:true,slug,image:imageUrl});
 
   } catch(err){
 
