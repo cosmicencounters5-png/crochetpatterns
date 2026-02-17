@@ -67,11 +67,28 @@ Link: ${selected.link}`
 
     const output = completion.choices[0].message.content;
 
-    // 🔥 GENERATE IMAGE (REAL WORKING WAY)
+    // 🔥 SAFE IMAGE PROMPT (NO SAFETY BLOCK)
+
+    const safePrompt = `
+Pinterest vertical crochet artwork illustration.
+
+Theme: cozy handmade crochet craft.
+
+Style:
+- yarn texture
+- soft pastel colors
+- handmade aesthetic
+- craft blog design
+- NO people
+- NO human body
+- focus on crochet object only
+
+Product inspiration: ${selected.title}
+`;
 
     const imageResponse = await openai.images.generate({
       model:"gpt-image-1",
-      prompt:`Vertical pinterest crochet pin, cozy yarn aesthetic, handmade crochet design, product: ${selected.title}, pinterest optimized layout`,
+      prompt:safePrompt,
       size:"1024x1024"
     });
 
