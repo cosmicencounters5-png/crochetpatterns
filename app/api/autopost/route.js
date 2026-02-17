@@ -31,7 +31,8 @@ export async function GET() {
 
       return {
         title: titleMatch ? titleMatch[1] : "",
-        link: linkMatch ? linkMatch[1] : ""
+        link: linkMatch ? linkMatch[1] : "",
+        raw: item
       };
 
     }).filter(i => i.title && i.link);
@@ -41,50 +42,47 @@ export async function GET() {
     }
 
     const selected = items[Math.floor(Math.random() * items.length)];
-// 🔥 EXTRACT IMAGE FROM RSS DESCRIPTION (REAL SOLUTION)
 
-let imageUrl = null;
-
-const descriptionMatch = rawItems.find(i => i.includes(selected.link));
-
-if (descriptionMatch) {
-
-  const imgMatch = descriptionMatch.match(/<img[^>]+src="([^"]+)"/);
-
-  if (imgMatch?.[1]) {
-    imageUrl = imgMatch[1];
-  }
-}
-    // 🔥 FETCH ETSY IMAGE (REAL WORKING VERSION)
+    // 🔥 GET IMAGE FROM RSS DESCRIPTION FIRST
     let imageUrl = null;
 
-    try {
+    const imgMatch = selected.raw.match(/<img[^>]+src="([^"]+)"/);
 
-      const productRes = await fetch(selected.link + "?view_type=gallery", {
-        headers: {
-          "User-Agent": "Mozilla/5.0",
-          "Accept-Language": "en-US,en;q=0.9"
-        },
-        cache: "no-store"
-      });
-
-      const html = await productRes.text();
-
-      let match = html.match(/property="og:image" content="([^"]+)"/);
-
-      if (!match) {
-        match = html.match(/name="twitter:image" content="([^"]+)"/);
-      }
-
-      if (match?.[1]) {
-        imageUrl = match[1];
-      }
-
-    } catch (err) {
-      console.log("Image fetch failed:", err);
+    if (imgMatch?.[1]) {
+      imageUrl = imgMatch[1];
     }
 
-    // AI CONTENT
+    // 🔥 FALLBACK: TRY FETCH FROM ETSY PAGE (if RSS had no image)
+    if (!imageUrl) {
+
+      try {
+
+        const productRes = await fetch(selected.link + "?view_type=gallery", {
+          headers: {
+            "User-Agent": "Mozilla/5.0",
+            "Accept-Language": "en-US,en;q=0.9"
+          },
+          cache: "no-store"
+        });
+
+        const html = await productRes.text();
+
+        let match = html.match(/property="og:image" content="([^"]+)"/);
+
+        if (!match) {
+          match = html.match(/name="twitter:image" content="([^"]+)"/);
+        }
+
+        if (match?.[1]) {
+          imageUrl = match[1];
+        }
+
+      } catch (err) {
+        console.log("Image fetch fallback failed:", err);
+      }
+    }
+
+    // 🤖 AI CONTENT
     const completion = await openai.chat.completions.create({
       model: "gpt-4.1",
       messages: [
@@ -132,7 +130,11 @@ Etsy link: ${selected.link}`
       throw error;
     }
 
-    return Response.json({ success: true, slug, image: imageUrl });
+    return Response.json({
+      success: true,
+      slug,
+      image: imageUrl
+    });
 
   } catch (err) {
 
