@@ -21,7 +21,7 @@ export async function GET() {
 
     const xml = await res.text();
 
-    // 🔥 PARSE EACH ITEM
+    // 🔥 PARSE RSS ITEMS
     const rawItems = xml.split("<item>").slice(1);
 
     const items = rawItems.map(item => {
@@ -31,8 +31,7 @@ export async function GET() {
 
       return {
         title: titleMatch ? titleMatch[1] : "",
-        link: linkMatch ? linkMatch[1] : "",
-        raw: item
+        link: linkMatch ? linkMatch[1] : ""
       };
 
     }).filter(i => i.title && i.link);
@@ -43,46 +42,46 @@ export async function GET() {
 
     const selected = items[Math.floor(Math.random() * items.length)];
 
-    // 🔥 GET IMAGE FROM RSS DESCRIPTION FIRST
+    // 🤖 GENERATE AI PIN IMAGE
     let imageUrl = null;
 
-    const imgMatch = selected.raw.match(/<img[^>]+src="([^"]+)"/);
+    try {
 
-    if (imgMatch?.[1]) {
-      imageUrl = imgMatch[1];
-    }
+      const img = await openai.images.generate({
+        model: "gpt-image-1",
+        prompt: `Pinterest vertical crochet pin. Cozy handmade crochet style. Subject: ${selected.title}. Soft yarn aesthetic, pastel colors, pinterest friendly layout.`,
+        size: "1024x1024"
+      });
 
-    // 🔥 FALLBACK: TRY FETCH FROM ETSY PAGE (if RSS had no image)
-    if (!imageUrl) {
+      const base64 = img.data?.[0]?.b64_json;
 
-      try {
+      if (base64) {
 
-        const productRes = await fetch(selected.link + "?view_type=gallery", {
-          headers: {
-            "User-Agent": "Mozilla/5.0",
-            "Accept-Language": "en-US,en;q=0.9"
-          },
-          cache: "no-store"
-        });
+        const buffer = Buffer.from(base64, "base64");
 
-        const html = await productRes.text();
+        const fileName = `pin-${Date.now()}.png`;
 
-        let match = html.match(/property="og:image" content="([^"]+)"/);
+        const { error: uploadError } = await supabase.storage
+          .from("images")
+          .upload(fileName, buffer, {
+            contentType: "image/png"
+          });
 
-        if (!match) {
-          match = html.match(/name="twitter:image" content="([^"]+)"/);
+        if (!uploadError) {
+
+          const { data } = supabase.storage
+            .from("images")
+            .getPublicUrl(fileName);
+
+          imageUrl = data.publicUrl;
         }
-
-        if (match?.[1]) {
-          imageUrl = match[1];
-        }
-
-      } catch (err) {
-        console.log("Image fetch fallback failed:", err);
       }
+
+    } catch (err) {
+      console.log("AI image generation failed", err);
     }
 
-    // 🤖 AI CONTENT
+    // 🤖 AI BLOG CONTENT
     const completion = await openai.chat.completions.create({
       model: "gpt-4.1",
       messages: [
