@@ -2,7 +2,6 @@ import OpenAI from "openai";
 import { supabase } from "../../lib/db";
 
 export const dynamic = "force-dynamic";
-export const runtime = "nodejs";
 
 export async function GET() {
 
@@ -12,14 +11,15 @@ export async function GET() {
       apiKey: process.env.OPENAI_API_KEY,
     });
 
-    // 🔥 FETCH ETSY RSS
+    // =========================
+    // FETCH RSS
+    // =========================
+
     const RSS_URL = "https://crochetpatternworks.etsy.com/rss";
 
     const res = await fetch(RSS_URL);
 
-    if (!res.ok) {
-      throw new Error("RSS fetch failed");
-    }
+    if (!res.ok) throw new Error("RSS fetch failed");
 
     const xml = await res.text();
 
@@ -31,19 +31,17 @@ export async function GET() {
       const linkMatch = item.match(/<link>(.*?)<\/link>/);
 
       return {
-        title: titleMatch ? titleMatch[1] : "",
-        link: linkMatch ? linkMatch[1] : ""
+        title: titleMatch?.[1],
+        link: linkMatch?.[1]
       };
 
     }).filter(i => i.title && i.link);
 
-    if(!items.length){
-      throw new Error("No items in RSS");
-    }
-
     const selected = items[Math.floor(Math.random()*items.length)];
 
-    // ⭐ GENERATE BLOG TEXT
+    // =========================
+    // AI BLOG TEXT
+    // =========================
 
     const completion = await openai.chat.completions.create({
       model:"gpt-4.1",
@@ -73,52 +71,40 @@ Link: ${selected.link}`
 
     const output = completion.choices[0].message.content;
 
-    // 🔥 SAFE IMAGE PROMPT (ANTI SAFETY BLOCK)
-
-    const safePrompt = `
-Pinterest vertical crochet artwork illustration.
-
-Theme: cozy handmade crochet craft.
-
-Style:
-- yarn texture
-- pastel colors
-- craft illustration
-- flat design
-- NO people
-- NO dolls
-- NO characters
-- crochet object only
-
-Product inspiration: ${selected.title}
-`;
+    // =========================
+    // AI IMAGE GENERATION
+    // =========================
 
     const imageResponse = await openai.images.generate({
       model:"gpt-image-1",
-      prompt:safePrompt,
+      prompt:`Vertical pinterest crochet pin, cozy yarn aesthetic, handmade crochet style, safe family-friendly design, yarn project: ${selected.title}`,
       size:"1024x1024"
     });
 
+    const base64 = imageResponse.data?.[0]?.b64_json;
+
     let imageUrl = null;
 
-    // ⭐ CASE 1 — base64 image
+    if(base64){
 
-    if(imageResponse.data?.[0]?.b64_json){
-
-      const buffer = Buffer.from(
-        imageResponse.data[0].b64_json,
-        "base64"
+      // ⭐ FIX: convert to Uint8Array
+      const bytes = Uint8Array.from(
+        atob(base64),
+        c => c.charCodeAt(0)
       );
 
       const fileName = `pin-${Date.now()}.png`;
 
-      const { error:uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from("pins")
-        .upload(fileName, buffer, {
-          contentType:"image/png"
+        .upload(fileName, bytes, {
+          contentType:"image/png",
+          upsert:true
         });
 
-      if(!uploadError){
+      if(uploadError){
+        console.log("UPLOAD ERROR:", uploadError);
+      } else {
 
         const { data } = supabase.storage
           .from("pins")
@@ -128,11 +114,9 @@ Product inspiration: ${selected.title}
       }
     }
 
-    // ⭐ CASE 2 — direct URL fallback
-
-    if(!imageUrl && imageResponse.data?.[0]?.url){
-      imageUrl = imageResponse.data[0].url;
-    }
+    // =========================
+    // SAVE POST
+    // =========================
 
     const slug = "post-"+Date.now();
 
@@ -143,11 +127,7 @@ Product inspiration: ${selected.title}
       image:imageUrl
     });
 
-    return Response.json({
-      success:true,
-      slug,
-      image:imageUrl
-    });
+    return Response.json({ success:true, slug, image:imageUrl });
 
   } catch(err){
 
