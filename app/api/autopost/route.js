@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import { supabase } from "../../lib/db";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export async function GET() {
 
@@ -11,6 +12,7 @@ export async function GET() {
       apiKey: process.env.OPENAI_API_KEY,
     });
 
+    // 🔥 FETCH ETSY RSS
     const RSS_URL = "https://crochetpatternworks.etsy.com/rss";
 
     const res = await fetch(RSS_URL);
@@ -34,6 +36,10 @@ export async function GET() {
       };
 
     }).filter(i => i.title && i.link);
+
+    if(!items.length){
+      throw new Error("No items in RSS");
+    }
 
     const selected = items[Math.floor(Math.random()*items.length)];
 
@@ -67,7 +73,7 @@ Link: ${selected.link}`
 
     const output = completion.choices[0].message.content;
 
-    // 🔥 SAFE IMAGE PROMPT (NO SAFETY BLOCK)
+    // 🔥 SAFE IMAGE PROMPT (ANTI SAFETY BLOCK)
 
     const safePrompt = `
 Pinterest vertical crochet artwork illustration.
@@ -76,12 +82,13 @@ Theme: cozy handmade crochet craft.
 
 Style:
 - yarn texture
-- soft pastel colors
-- handmade aesthetic
-- craft blog design
+- pastel colors
+- craft illustration
+- flat design
 - NO people
-- NO human body
-- focus on crochet object only
+- NO dolls
+- NO characters
+- crochet object only
 
 Product inspiration: ${selected.title}
 `;
@@ -92,13 +99,16 @@ Product inspiration: ${selected.title}
       size:"1024x1024"
     });
 
-    const base64 = imageResponse.data?.[0]?.b64_json;
-
     let imageUrl = null;
 
-    if(base64){
+    // ⭐ CASE 1 — base64 image
 
-      const buffer = Buffer.from(base64,"base64");
+    if(imageResponse.data?.[0]?.b64_json){
+
+      const buffer = Buffer.from(
+        imageResponse.data[0].b64_json,
+        "base64"
+      );
 
       const fileName = `pin-${Date.now()}.png`;
 
@@ -118,6 +128,12 @@ Product inspiration: ${selected.title}
       }
     }
 
+    // ⭐ CASE 2 — direct URL fallback
+
+    if(!imageUrl && imageResponse.data?.[0]?.url){
+      imageUrl = imageResponse.data[0].url;
+    }
+
     const slug = "post-"+Date.now();
 
     await supabase.from("posts").insert({
@@ -127,11 +143,15 @@ Product inspiration: ${selected.title}
       image:imageUrl
     });
 
-    return Response.json({success:true,slug,image:imageUrl});
+    return Response.json({
+      success:true,
+      slug,
+      image:imageUrl
+    });
 
   } catch(err){
 
-    console.error(err);
+    console.error("AUTPOST ERROR:", err);
 
     return Response.json({
       success:false,
