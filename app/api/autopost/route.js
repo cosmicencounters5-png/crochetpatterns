@@ -21,7 +21,7 @@ export async function GET() {
 
     const xml = await res.text();
 
-    // 🔥 PARSE EACH ITEM SEPARATELY (STABLE METHOD)
+    // 🔥 PARSE EACH ITEM
     const rawItems = xml.split("<item>").slice(1);
 
     const items = rawItems.map(item => {
@@ -29,15 +29,9 @@ export async function GET() {
       const titleMatch = item.match(/<title>(.*?)<\/title>/);
       const linkMatch = item.match(/<link>(.*?)<\/link>/);
 
-      // Etsy thumbnail
-      const imgMatch =
-        item.match(/<media:thumbnail url="([^"]+)"/) ||
-        item.match(/<media:content url="([^"]+)"/);
-
       return {
         title: titleMatch ? titleMatch[1] : "",
-        link: linkMatch ? linkMatch[1] : "",
-        image: imgMatch ? imgMatch[1] : null
+        link: linkMatch ? linkMatch[1] : ""
       };
 
     }).filter(i => i.title && i.link);
@@ -48,7 +42,34 @@ export async function GET() {
 
     const selected = items[Math.floor(Math.random() * items.length)];
 
-    const imageUrl = selected.image;
+    // 🔥 FETCH ETSY IMAGE (REAL WORKING VERSION)
+    let imageUrl = null;
+
+    try {
+
+      const productRes = await fetch(selected.link + "?view_type=gallery", {
+        headers: {
+          "User-Agent": "Mozilla/5.0",
+          "Accept-Language": "en-US,en;q=0.9"
+        },
+        cache: "no-store"
+      });
+
+      const html = await productRes.text();
+
+      let match = html.match(/property="og:image" content="([^"]+)"/);
+
+      if (!match) {
+        match = html.match(/name="twitter:image" content="([^"]+)"/);
+      }
+
+      if (match?.[1]) {
+        imageUrl = match[1];
+      }
+
+    } catch (err) {
+      console.log("Image fetch failed:", err);
+    }
 
     // AI CONTENT
     const completion = await openai.chat.completions.create({
