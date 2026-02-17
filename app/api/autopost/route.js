@@ -41,7 +41,20 @@ export async function GET() {
     }
 
     const selected = items[Math.floor(Math.random() * items.length)];
+// 🔥 EXTRACT IMAGE FROM RSS DESCRIPTION (REAL SOLUTION)
 
+let imageUrl = null;
+
+const descriptionMatch = rawItems.find(i => i.includes(selected.link));
+
+if (descriptionMatch) {
+
+  const imgMatch = descriptionMatch.match(/<img[^>]+src="([^"]+)"/);
+
+  if (imgMatch?.[1]) {
+    imageUrl = imgMatch[1];
+  }
+}
     // 🔥 FETCH ETSY IMAGE (REAL WORKING VERSION)
     let imageUrl = null;
 
